@@ -1,0 +1,51 @@
+package org.apache.log4j.varia;
+
+import java.io.*;
+import java.net.Socket;
+import java.net.ServerSocket;
+import org.apache.log4j.helpers.LogLog;
+import org.apache.log4j.RollingFileAppender;
+import org.apache.log4j.Layout;
+import org.apache.log4j.helpers.OptionConverter;
+import org.apache.log4j.helpers.LogLog;
+
+class HUPNode implements Runnable {
+
+  Socket socket;
+  DataInputStream dis;
+  DataOutputStream dos;
+  ExternallyRolledFileAppender er;
+  
+  public
+  HUPNode(Socket socket, ExternallyRolledFileAppender er) {
+    this.socket = socket;
+    this.er = er;
+    try {
+      dis = new DataInputStream(socket.getInputStream());
+      dos = new DataOutputStream(socket.getOutputStream());
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+    }
+  }
+  
+  public void run() {
+    try {
+      String line = dis.readUTF();
+      LogLog.debug("Got external roll over signal.");      
+      if(ExternallyRolledFileAppender.ROLL_OVER.equals(line)) {
+	synchronized(er) {
+	  er.rollOver();
+	}
+	dos.writeUTF(ExternallyRolledFileAppender.OK);
+      }
+      else {
+	dos.writeUTF("Expecting [RollOver] string.");
+      }
+      dos.close();
+    }
+    catch(Exception e) {
+      LogLog.error("Unexptected exception. Exiting HUPNode.", e);
+    }    
+  }
+}
